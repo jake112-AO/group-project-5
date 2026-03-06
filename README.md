@@ -1,16 +1,70 @@
-# React + Vite
+# ScamShield Hub (Group 5)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Full-stack phishing detection training platform based on your course backlog and architecture docs.
 
-Currently, two official plugins are available:
+## Implemented Architecture
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Frontend: React + React Router (multi-page SPA)
+- Backend: Node.js + Express REST API
+- Database: MongoDB with Mongoose models
+- Auth: JWT + bcrypt password hashing
+- Roles: `user` and `admin`
+- Deployment target: Railway backend + static frontend
 
-## React Compiler
+## Core Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Login / Register
+- Home / Case Feed / Case Detail pages
+- Voting flow (`scam` / `safe` / `unsure`) with instant explanation
+- Points, level, accuracy, badge gamification
+- User profile stats tracking
+- Leaderboard ranking
+- Case comments
+- Admin dashboard (add, publish, unpublish, delete cases)
+- Seed script creating 120 training cases
 
-## Expanding the ESLint configuration
+## Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `src/` frontend app
+- `backend/src/` Express API
+- `backend/scripts/seedCases.js` dataset seeding
+
+## Local Setup
+
+1. Install dependencies:
+   - Frontend: `npm install`
+   - Backend: `npm --prefix backend install`
+2. Configure env:
+   - Frontend: copy `.env.example` to `.env`
+   - Backend: copy `backend/.env.example` to `backend/.env`
+3. Start backend: `npm run dev:backend`
+4. Seed cases (once): `npm run seed`
+5. Start frontend: `npm run dev`
+
+## Backend Env
+
+`backend/.env`:
+
+- `PORT=4000`
+- `MONGODB_URI=...`
+- `JWT_SECRET=...`
+- `CLIENT_ORIGIN=http://localhost:5173`
+
+## Railway Deployment (Backend)
+
+1. Push repo to GitHub.
+2. In Railway, create a new project from this repo.
+3. Set root directory to `backend`.
+4. Add environment variables:
+   - `MONGODB_URI`
+   - `JWT_SECRET`
+   - `CLIENT_ORIGIN` (frontend domain)
+5. Deploy using start command: `npm start`.
+6. After deploy, set frontend `VITE_API_BASE_URL=https://<railway-domain>/api`.
+
+## Suggested Demo Flow
+
+1. Register a normal user and solve cases from Case Feed.
+2. Show case explanations + comments.
+3. Open Profile and Leaderboard to show score progression.
+4. Login as admin account and manage cases from Admin Dashboard.
