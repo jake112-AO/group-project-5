@@ -15,4 +15,6 @@ export const env = {
   mongoUri: process.env.MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET,
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  resendApiKey: process.env.RESEND_API_KEY || "",
+  emailFrom: process.env.EMAIL_FROM || "onboarding@resend.dev",
 };

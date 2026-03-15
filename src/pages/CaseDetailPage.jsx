@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 
 function CaseDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [caseItem, setCaseItem] = useState(null);
   const [comments, setComments] = useState([]);
@@ -59,14 +60,24 @@ function CaseDetailPage() {
 
   return (
     <section className="panel">
+      <div className="detail-header">
+        <button className="btn btn-ghost" type="button" onClick={() => navigate(-1)}>
+          Back to cases
+        </button>
+        <div className="detail-meta-row">
+          <span className={`pill ${caseItem.contentType}`}>{caseItem.contentType}</span>
+          <span className={`pill ${caseItem.difficulty}`}>{caseItem.difficulty}</span>
+        </div>
+      </div>
       <h2>{caseItem.title}</h2>
-      <p>
-        <strong>Type:</strong> {caseItem.contentType} | <strong>Difficulty:</strong>{" "}
-        {caseItem.difficulty}
+      <p className="supporting-copy">
+        Review the details below, decide whether this looks legitimate, then submit your answer.
       </p>
-      <p className="case-content">{caseItem.content}</p>
+      <div className="case-body-card">
+        <p className="case-content">{caseItem.content}</p>
+      </div>
       {caseItem.links?.length ? (
-        <p>
+        <p className="case-links">
           <strong>Links:</strong> {caseItem.links.join(", ")}
         </p>
       ) : null}
@@ -99,6 +110,9 @@ function CaseDetailPage() {
             <strong>Correct answer:</strong> {result.correctAnswer}
           </p>
           <p>{result.explanation}</p>
+          <button className="btn btn-ghost" type="button" onClick={() => navigate("/cases")}>
+            Return to feed
+          </button>
         </div>
       ) : null}
 

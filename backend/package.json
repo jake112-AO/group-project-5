@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "seed": "node scripts/seedCases.js"
+    "seed": "node scripts/seedCases.js",
+    "make-admin": "node scripts/makeAdmin.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -15,6 +16,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.4",
-    "my-react-app": "file:.."
+    "my-react-app": "file:..",
+    "resend": "^4.6.0"
   }
 }

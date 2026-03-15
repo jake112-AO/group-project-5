@@ -37,9 +37,7 @@ export function AuthProvider({ children }) {
       method: "POST",
       body: JSON.stringify({ username, email, password }),
     });
-    localStorage.setItem("scamshield_token", result.token);
-    setUser(result.user);
-    return result.user;
+    return result;
   }
 
   function logout() {

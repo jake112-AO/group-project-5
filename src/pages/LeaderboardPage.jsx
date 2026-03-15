@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 function MemberPicker({ group, onClose, onMembersChanged }) {
   const [username, setUsername] = useState("");
@@ -20,7 +21,7 @@ function MemberPicker({ group, onClose, onMembersChanged }) {
     loadMembers();
   }, [loadMembers]);
 
-  const addByUsername = async () => {
+  async function addByUsername() {
     const trimmed = username.trim();
     if (!trimmed) return;
 
@@ -29,7 +30,7 @@ function MemberPicker({ group, onClose, onMembersChanged }) {
     try {
       const { user } = await api(`/leaderboard/users/by-username/${encodeURIComponent(trimmed)}`);
 
-      if (members.some((m) => m.id.toString() === user.id.toString())) {
+      if (members.some((member) => member.id.toString() === user.id.toString())) {
         setError(`${user.username} is already in this group`);
         return;
       }
@@ -47,9 +48,9 @@ function MemberPicker({ group, onClose, onMembersChanged }) {
     } finally {
       setAdding(false);
     }
-  };
+  }
 
-  const removeUser = async (userId) => {
+  async function removeUser(userId) {
     setError("");
     try {
       await api(`/leaderboard/groups/${group.id}/members/${userId}`, {
@@ -60,21 +61,24 @@ function MemberPicker({ group, onClose, onMembersChanged }) {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.modalHeader}>
-          <h3 style={{ margin: 0 }}>Manage "{group.name}"</h3>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+    <div className="overlay">
+      <div className="modal-card">
+        <div className="modal-header">
+          <h3>Manage "{group.name}"</h3>
+          <button className="icon-button" onClick={onClose} type="button">
+            x
+          </button>
         </div>
 
-        {error && <p style={styles.error}>{error}</p>}
+        <p className="supporting-copy">
+          Add usernames here if you want a smaller leaderboard for classmates or friends.
+        </p>
 
-        <div style={styles.inputRow}>
+        <div className="input-row">
           <input
-            style={styles.input}
             placeholder="Enter username..."
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -82,93 +86,79 @@ function MemberPicker({ group, onClose, onMembersChanged }) {
             autoFocus
           />
           <button
-            style={styles.addBtn}
+            className="btn btn-primary"
             onClick={addByUsername}
             disabled={adding || !username.trim()}
+            type="button"
           >
             {adding ? "Adding..." : "Add"}
           </button>
         </div>
 
-        <h4 style={styles.sectionTitle}>Current Members ({members.length})</h4>
+        {error ? <p className="error">{error}</p> : null}
 
-        {members.length === 0 ? (
-          <p style={styles.hint}>No members yet. Enter a username above to add one.</p>
-        ) : (
-          <ul style={styles.list}>
-            {members.map((m) => (
-              <li key={m.id} style={styles.listItem}>
-                <span>{m.username}</span>
-                <button style={styles.removeBtn} onClick={() => removeUser(m.id)}>
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="modal-section">
+          <h4>Current Members ({members.length})</h4>
+          {members.length === 0 ? (
+            <p className="muted-text">No members yet.</p>
+          ) : (
+            <ul className="member-list">
+              {members.map((member) => (
+                <li key={member.id} className="member-list-item">
+                  <span>{member.username}</span>
+                  <button
+                    className="btn btn-danger btn-small"
+                    onClick={() => removeUser(member.id)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-const styles = {
-  overlay: {
-    position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-    display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
-  },
-  modal: {
-    background: "#fff", borderRadius: 8, padding: 24, width: 400,
-    maxHeight: "80vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8,
-  },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  closeBtn: { background: "none", border: "none", fontSize: 18, cursor: "pointer" },
-  inputRow: { display: "flex", gap: 8 },
-  input: {
-    flex: 1, padding: "8px 12px", border: "1px solid #ddd",
-    borderRadius: 6, fontSize: 14,
-  },
-  addBtn: {
-    padding: "8px 16px", background: "#2563eb", color: "#fff",
-    border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap",
-  },
-  removeBtn: {
-    padding: "4px 12px", background: "#ef4444", color: "#fff",
-    border: "none", borderRadius: 4, cursor: "pointer",
-  },
-  list: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 },
-  listItem: {
-    display: "flex", justifyContent: "space-between", alignItems: "center",
-    padding: "8px 0", borderBottom: "1px solid #f0f0f0",
-  },
-  sectionTitle: { margin: "8px 0 4px", borderTop: "1px solid #eee", paddingTop: 12 },
-  hint: { color: "#888", fontSize: 13, margin: 0 },
-  error: { color: "#ef4444", fontSize: 13, margin: 0 },
-};
-
 function LeaderboardPage() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
   const [groups, setGroups] = useState([]);
   const [activeGroup, setActiveGroup] = useState(null);
   const [pickerGroup, setPickerGroup] = useState(null);
 
-  const loadLeaderboard = useCallback((groupId = null) => {
+  const loadLeaderboard = useCallback(async (groupId = null) => {
     const url = groupId ? `/leaderboard?group=${groupId}` : "/leaderboard";
-    api(url)
-      .then((result) => setRows(result?.leaderboard ?? []))
-      .catch((err) => setError(err.message));
+    try {
+      const result = await api(url);
+      setRows(result?.leaderboard ?? []);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const result = await api("/leaderboard/groups");
+      setGroups(result?.groups ?? []);
+    } catch (err) {
+      setError(err.message);
+    }
   }, []);
 
   useEffect(() => {
     loadLeaderboard();
-    api("/leaderboard/groups")
-      .then((result) => setGroups(result?.groups ?? []))
-      .catch((err) => setError(err.message));
-  }, [loadLeaderboard]);
+    loadGroups();
+  }, [loadGroups, loadLeaderboard]);
 
-  const createGroup = async () => {
-    const name = prompt("Enter group name");
+  async function createGroup() {
+    const name = window.prompt("Enter group name");
     if (!name) return;
+
     setError("");
     try {
       const result = await api("/leaderboard/groups", {
@@ -180,47 +170,89 @@ function LeaderboardPage() {
     } catch (err) {
       setError(err.message);
     }
-  };
+  }
 
-  const selectGroup = (groupId) => {
+  async function deleteGroup(group) {
+    const confirmed = window.confirm(`Delete "${group.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setError("");
+    try {
+      await api(`/leaderboard/groups/${group.id}`, { method: "DELETE" });
+      setGroups((prev) => prev.filter((item) => item.id !== group.id));
+      if (activeGroup === group.id) {
+        setActiveGroup(null);
+        loadLeaderboard();
+      }
+      if (pickerGroup?.id === group.id) {
+        setPickerGroup(null);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function selectGroup(groupId) {
     setActiveGroup(groupId);
     setError("");
     loadLeaderboard(groupId);
-  };
+  }
 
   return (
     <section className="panel">
-      <h2>Leaderboard</h2>
+      <div className="section-head">
+        <div>
+          <h2>Leaderboard</h2>
+          <p className="supporting-copy">
+            Global shows everyone. Group mode is a smaller comparison board for classmates, which
+            is why you may have seen extra controls here.
+          </p>
+        </div>
+        <button className="btn btn-primary" onClick={createGroup} type="button">
+          Create Group
+        </button>
+      </div>
 
-      <button onClick={createGroup}>Create Group</button>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "8px 0" }}>
+      <div className="group-tabs">
         <button
+          className={`group-tab ${activeGroup === null ? "active" : ""}`}
           onClick={() => selectGroup(null)}
-          style={{ fontWeight: activeGroup === null ? "bold" : "normal" }}
+          type="button"
         >
           Global
         </button>
-        {groups.map((g) => (
-          <span key={g.id} style={{ display: "inline-flex", gap: 4 }}>
+        {groups.map((group) => (
+          <span key={group.id} className="group-tab-wrap">
             <button
-              onClick={() => selectGroup(g.id)}
-              style={{ fontWeight: activeGroup === g.id ? "bold" : "normal" }}
+              className={`group-tab ${activeGroup === group.id ? "active" : ""}`}
+              onClick={() => selectGroup(group.id)}
+              type="button"
             >
-              {g.name}
+              {group.name}
             </button>
             <button
-              onClick={() => setPickerGroup(g)}
+              className="group-manage-button"
+              onClick={() => setPickerGroup(group)}
               title="Manage members"
-              style={{ fontSize: 12, padding: "2px 6px" }}
+              type="button"
             >
-              ⚙
+              Manage
             </button>
+            {String(group.createdBy) === String(user?.id) ? (
+              <button
+                className="group-delete-button"
+                onClick={() => deleteGroup(group)}
+                title="Delete group"
+                type="button"
+              >
+                Delete
+              </button>
+            ) : null}
           </span>
         ))}
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error ? <p className="error">{error}</p> : null}
 
       <table>
         <thead>
@@ -236,8 +268,8 @@ function LeaderboardPage() {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} style={{ textAlign: "center", color: "#888", padding: 24 }}>
-                {activeGroup ? "No members in this group yet. Click ⚙ to add some." : "No results"}
+              <td colSpan={6} className="table-empty">
+                {activeGroup ? "No members in this group yet. Click Manage to add some." : "No results"}
               </td>
             </tr>
           ) : (
@@ -255,13 +287,13 @@ function LeaderboardPage() {
         </tbody>
       </table>
 
-      {pickerGroup && (
+      {pickerGroup ? (
         <MemberPicker
           group={pickerGroup}
           onClose={() => setPickerGroup(null)}
           onMembersChanged={() => loadLeaderboard(activeGroup)}
         />
-      )}
+      ) : null}
     </section>
   );
 }

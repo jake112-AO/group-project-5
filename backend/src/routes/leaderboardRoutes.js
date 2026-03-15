@@ -1,99 +1,137 @@
 import express from "express";
+import mongoose from "mongoose";
 import { User } from "../models/User.js";
+import { LeaderboardGroup } from "../models/LeaderboardGroup.js";
+import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
-
-let groups = [];
-const groupMembers = {};
 
 router.get("/", async (req, res) => {
   const { group: groupId } = req.query;
 
   try {
-    let users;
+    let userFilter = {};
 
     if (groupId) {
-      const members = groupMembers[groupId];
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ error: "Invalid group id" });
+      }
 
-      if (!members || members.size === 0) {
+      const group = await LeaderboardGroup.findById(groupId).select("members").lean();
+      if (!group) {
+        return res.status(404).json({ error: "Group not found" });
+      }
+
+      if (!group.members?.length) {
         return res.json({ leaderboard: [] });
       }
 
-      const memberIds = [...members];
-      users = await User.find({ _id: { $in: memberIds } })
-        .sort({ reputationScore: -1, accuracyRate: -1, createdAt: 1 })
-        .limit(50)
-        .select("username reputationScore level accuracyRate totalVotes badges")
-        .lean();
-    } else {
-      users = await User.find({})
-        .sort({ reputationScore: -1, accuracyRate: -1, createdAt: 1 })
-        .limit(50)
-        .select("username reputationScore level accuracyRate totalVotes badges")
-        .lean();
+      userFilter = { _id: { $in: group.members } };
     }
 
-    res.json({
-      leaderboard: users.map((u, idx) => ({
+    const users = await User.find(userFilter)
+      .sort({ reputationScore: -1, accuracyRate: -1, createdAt: 1 })
+      .limit(50)
+      .select("username reputationScore level accuracyRate totalVotes badges")
+      .lean();
+
+    return res.json({
+      leaderboard: users.map((user, idx) => ({
         rank: idx + 1,
-        id: u._id,
-        username: u.username,
-        reputationScore: u.reputationScore,
-        level: u.level,
-        accuracyRate: u.accuracyRate,
-        totalVotes: u.totalVotes,
-        badges: u.badges,
+        id: user._id,
+        username: user.username,
+        reputationScore: user.reputationScore,
+        level: user.level,
+        accuracyRate: user.accuracyRate,
+        totalVotes: user.totalVotes,
+        badges: user.badges,
       })),
     });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch leaderboard" });
+  } catch {
+    return res.status(500).json({ error: "Failed to fetch leaderboard" });
   }
 });
 
-router.get("/groups", (req, res) => {
-  res.json({ groups });
+router.get("/groups", requireAuth, async (req, res) => {
+  try {
+    const groups = await LeaderboardGroup.find({})
+      .sort({ createdAt: -1 })
+      .select("name members createdBy")
+      .lean();
+
+    return res.json({
+      groups: groups.map((group) => ({
+        id: group._id,
+        name: group.name,
+        memberCount: group.members.length,
+        createdBy: group.createdBy,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ error: "Failed to fetch groups" });
+  }
 });
 
-router.post("/groups", (req, res) => {
+router.post("/groups", requireAuth, async (req, res) => {
   const { name } = req.body;
 
   if (!name || typeof name !== "string" || !name.trim()) {
     return res.status(400).json({ error: "Group name is required" });
   }
 
-  if (groups.some((g) => g.name.toLowerCase() === name.trim().toLowerCase())) {
-    return res.status(409).json({ error: "Group already exists" });
+  try {
+    const existing = await LeaderboardGroup.findOne({ name: name.trim() }).lean();
+    if (existing) {
+      return res.status(409).json({ error: "Group already exists" });
+    }
+
+    const group = await LeaderboardGroup.create({
+      name: name.trim(),
+      createdBy: req.user._id,
+      members: [req.user._id],
+    });
+
+    return res.status(201).json({
+      group: {
+        id: group._id,
+        name: group.name,
+        memberCount: group.members.length,
+        createdBy: group.createdBy,
+      },
+    });
+  } catch {
+    return res.status(500).json({ error: "Failed to create group" });
   }
-
-  const group = { id: Date.now().toString(), name: name.trim() };
-  groups.push(group);
-  groupMembers[group.id] = new Set();
-
-  res.status(201).json({ group });
 });
 
-router.get("/groups/:groupId/members", async (req, res) => {
+router.get("/groups/:groupId/members", requireAuth, async (req, res) => {
   const { groupId } = req.params;
 
-  if (!groups.some((g) => g.id === groupId)) {
-    return res.status(404).json({ error: "Group not found" });
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ error: "Invalid group id" });
   }
 
   try {
-    const members = groupMembers[groupId];
-    if (!members || members.size === 0) return res.json({ members: [] });
-
-    const users = await User.find({ _id: { $in: [...members] } })
-      .select("username reputationScore level")
+    const group = await LeaderboardGroup.findById(groupId)
+      .populate("members", "username reputationScore level")
       .lean();
 
-    res.json({ members: users.map((u) => ({ id: u._id, username: u.username })) });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch members" });
+    if (!group) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    return res.json({
+      members: (group.members || []).map((user) => ({
+        id: user._id,
+        username: user.username,
+      })),
+    });
+  } catch {
+    return res.status(500).json({ error: "Failed to fetch members" });
   }
 });
 
-router.get("/users/by-username/:username", async (req, res) => {
+router.get("/users/by-username/:username", requireAuth, async (req, res) => {
   const { username } = req.params;
 
   try {
@@ -103,13 +141,13 @@ router.get("/users/by-username/:username", async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json({ user: { id: user._id, username: user.username, level: user.level } });
-  } catch (err) {
-    res.status(500).json({ error: "Lookup failed" });
+    return res.json({ user: { id: user._id, username: user.username, level: user.level } });
+  } catch {
+    return res.status(500).json({ error: "Lookup failed" });
   }
 });
 
-router.post("/groups/:groupId/join", async (req, res) => {
+router.post("/groups/:groupId/join", requireAuth, async (req, res) => {
   const { groupId } = req.params;
   const { userId } = req.body;
 
@@ -117,32 +155,75 @@ router.post("/groups/:groupId/join", async (req, res) => {
     return res.status(400).json({ error: "userId is required" });
   }
 
-  if (!groups.some((g) => g.id === groupId)) {
-    return res.status(404).json({ error: "Group not found" });
+  if (!mongoose.Types.ObjectId.isValid(groupId) || !mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: "Invalid user or group id" });
   }
 
   try {
-    const user = await User.findById(userId).select("username").lean();
+    const [group, user] = await Promise.all([
+      LeaderboardGroup.findById(groupId),
+      User.findById(userId).select("username").lean(),
+    ]);
+
+    if (!group) return res.status(404).json({ error: "Group not found" });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    if (!groupMembers[groupId]) groupMembers[groupId] = new Set();
-    groupMembers[groupId].add(userId.toString());
+    const alreadyMember = group.members.some((memberId) => memberId.toString() === userId.toString());
+    if (!alreadyMember) {
+      group.members.push(userId);
+      await group.save();
+    }
 
-    res.json({ message: "Added to group", userId, groupId });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to join group" });
+    return res.json({ message: "Added to group", userId, groupId });
+  } catch {
+    return res.status(500).json({ error: "Failed to join group" });
   }
 });
 
-router.delete("/groups/:groupId/members/:userId", (req, res) => {
+router.delete("/groups/:groupId/members/:userId", requireAuth, async (req, res) => {
   const { groupId, userId } = req.params;
 
-  if (!groups.some((g) => g.id === groupId)) {
-    return res.status(404).json({ error: "Group not found" });
+  if (!mongoose.Types.ObjectId.isValid(groupId) || !mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: "Invalid user or group id" });
   }
 
-  groupMembers[groupId]?.delete(userId);
-  res.json({ message: "Removed from group" });
+  try {
+    const group = await LeaderboardGroup.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    group.members = group.members.filter((memberId) => memberId.toString() !== userId.toString());
+    await group.save();
+
+    return res.json({ message: "Removed from group" });
+  } catch {
+    return res.status(500).json({ error: "Failed to remove member" });
+  }
+});
+
+router.delete("/groups/:groupId", requireAuth, async (req, res) => {
+  const { groupId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    return res.status(400).json({ error: "Invalid group id" });
+  }
+
+  try {
+    const group = await LeaderboardGroup.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+
+    if (group.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: "Only the group creator can delete this group" });
+    }
+
+    await LeaderboardGroup.findByIdAndDelete(groupId);
+    return res.json({ message: "Group deleted" });
+  } catch {
+    return res.status(500).json({ error: "Failed to delete group" });
+  }
 });
 
 export default router;

@@ -14,6 +14,7 @@ Full-stack phishing detection training platform based on your course backlog and
 ## Core Features
 
 - Login / Register
+- Email verification via Resend 6-digit code
 - Home / Case Feed / Case Detail pages
 - Voting flow (`scam` / `safe` / `unsure`) with instant explanation
 - Points, level, accuracy, badge gamification
@@ -49,6 +50,8 @@ Full-stack phishing detection training platform based on your course backlog and
 - `MONGODB_URI=...`
 - `JWT_SECRET=...`
 - `CLIENT_ORIGIN=http://localhost:5173`
+- `RESEND_API_KEY=...`
+- `EMAIL_FROM=onboarding@resend.dev`
 
 ## Railway Deployment (Backend)
 
@@ -59,6 +62,8 @@ Full-stack phishing detection training platform based on your course backlog and
    - `MONGODB_URI`
    - `JWT_SECRET`
    - `CLIENT_ORIGIN` (frontend domain)
+   - `RESEND_API_KEY`
+   - `EMAIL_FROM`
 5. Deploy using start command: `npm start`.
 6. After deploy, set frontend `VITE_API_BASE_URL=https://<railway-domain>/api`.
 
